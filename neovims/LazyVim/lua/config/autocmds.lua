@@ -99,3 +99,33 @@ vim.keymap.set({ "n", "x", "o" }, "§", "[", { remap = true, desc = "Simulate ["
 
 -- Map ')' to behave exactly like ']'
 vim.keymap.set({ "n", "x", "o" }, "à", "]", { remap = true, desc = "Simulate ]" })
+-- Contournement agressif pour le bug Neovim 0.12 vs Pyright (Renommage)
+local original_rename_handler = vim.lsp.handlers["textDocument/rename"]
+
+vim.lsp.handlers["textDocument/rename"] = function(err, result, ctx, config)
+  -- Si on reçoit un résultat du serveur, on le nettoie avant de l'afficher
+  if result then
+    -- Nettoyage des documentChanges
+    if result.documentChanges then
+      for _, change in ipairs(result.documentChanges) do
+        if change.edits then
+          for _, edit in ipairs(change.edits) do
+            edit.annotationId = nil -- On supprime l'annotation qui fait crasher
+          end
+        end
+      end
+    end
+
+    -- Nettoyage des changes standards
+    if result.changes then
+      for _, edits in pairs(result.changes) do
+        for _, edit in ipairs(edits) do
+          edit.annotationId = nil -- On supprime l'annotation qui fait crasher
+        end
+      end
+    end
+  end
+
+  -- On passe le résultat nettoyé au moteur de Neovim
+  original_rename_handler(err, result, ctx, config)
+end
